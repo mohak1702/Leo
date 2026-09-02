@@ -14,18 +14,76 @@ import "./App.css";
 
 function App() {
   const [command, setCommand] = useState("");
-  const [status, setStatus] = useState("READY");
+const [status, setStatus] = useState("READY");
+const [activity, setActivity] = useState([]);
 
-  const handleCommand = () => {
-    if (!command.trim()) return;
+  const handleCommand = async () => {
+  if (!command.trim()) return;
 
-    setStatus("THINKING");
+  const userCommand = command.trim();
 
-    setTimeout(() => {
-      setStatus("READY");
-      setCommand("");
-    }, 2800);
+  setStatus("THINKING");
+
+  const commandEntry = {
+    id: Date.now(),
+    command: userCommand,
+    status: "PROCESSING",
+    response: null,
   };
+
+  setActivity((prev) => [commandEntry, ...prev]);
+
+  try {
+    const response = await fetch("http://127.0.0.1:8000/command", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        command: userCommand,
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Backend returned ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    console.log("LEO backend response:", data);
+
+    setActivity((prev) =>
+      prev.map((item) =>
+        item.id === commandEntry.id
+          ? {
+              ...item,
+              status: "COMPLETED",
+              response: data.message,
+            }
+          : item
+      )
+    );
+
+    setStatus("READY");
+    setCommand("");
+  } catch (error) {
+    console.error("LEO backend error:", error);
+
+    setActivity((prev) =>
+      prev.map((item) =>
+        item.id === commandEntry.id
+          ? {
+              ...item,
+              status: "ERROR",
+              response: "Unable to communicate with LEO backend.",
+            }
+          : item
+      )
+    );
+
+    setStatus("READY");
+  }
+};
 
   return (
     <div className={`leo-app status-${status.toLowerCase()}`}>
@@ -147,13 +205,40 @@ function App() {
             <span className="live-badge">LIVE</span>
           </div>
 
-          <div className="activity-empty">
-            <div className="activity-icon">
-              <Sparkles size={24} />
-            </div>
-            <h3>Standing by</h3>
-            <p>Give LEO a command to watch live device execution in real-time.</p>
+          <div className="activity-feed">
+  {activity.length === 0 ? (
+    <div className="activity-empty">
+      <div className="activity-icon">
+        <Sparkles size={24} />
+      </div>
+
+      <h3>Standing by</h3>
+
+      <p>
+        Give LEO a command to watch live device execution in real-time.
+      </p>
+    </div>
+  ) : (
+    activity.map((item) => (
+      <div className="activity-item" key={item.id}>
+        <div className="activity-item-header">
+          <span>COMMAND</span>
+          <span>{item.status}</span>
+        </div>
+
+        <div className="activity-command">
+          &gt; {item.command}
+        </div>
+
+        {item.response && (
+          <div className="activity-response">
+            {item.response}
           </div>
+        )}
+      </div>
+    ))
+  )}
+</div>
 
           <div className="capability-grid">
             <div>
