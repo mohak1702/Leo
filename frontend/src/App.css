@@ -705,11 +705,7 @@ footer {
   }
 }
 
-.activity-feed {
-  flex: 1;
-  overflow-y: auto;
-  min-height: 0;
-}
+
 
 .activity-item {
   padding: 14px;
@@ -739,4 +735,37 @@ footer {
   font-size: 13px;
   opacity: 0.75;
   line-height: 1.4;
+}
+
+/* ==========================================================================
+   Telemetry Panel - Fixed Height / Internal Scrolling
+   ========================================================================== */
+
+.activity-panel {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.activity-feed {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.activity-feed::-webkit-scrollbar {
+  width: 4px;
+}
+
+.activity-feed::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.activity-feed::-webkit-scrollbar-thumb {
+  background: rgba(56, 189, 248, 0.35);
+  border-radius: 10px;
+}
+
+.activity-feed::-webkit-scrollbar-thumb:hover {
+  background: rgba(56, 189, 248, 0.65);
 }
