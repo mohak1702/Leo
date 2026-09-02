@@ -1,50 +1,41 @@
+from backend.app.intent import detect_intent
 from backend.app.tools.computer import open_application
-
-
-APPLICATIONS = {
-    "calculator": "Calculator",
-    "safari": "Safari",
-    "chrome": "Google Chrome",
-    "google chrome": "Google Chrome",
-    "finder": "Finder",
-    "terminal": "Terminal",
-    "vscode": "Visual Studio Code",
-    "vs code": "Visual Studio Code",
-}
 
 
 def route_command(command: str) -> dict:
     """
-    Route a natural-language command to the appropriate LEO tool.
+    Route a command based on the detected intent.
     """
 
-    normalized_command = command.strip().lower()
+    intent_data = detect_intent(command)
+
+    intent = intent_data["intent"]
+    target = intent_data["target"]
 
     # ---------------------------------
-    # Open application commands
+    # OPEN APPLICATION
     # ---------------------------------
 
-    if normalized_command.startswith("open "):
-        application = normalized_command[5:].strip()
+    if intent == "OPEN_APPLICATION":
+        result = open_application(target)
 
-        if application in APPLICATIONS:
-            application_name = APPLICATIONS[application]
-
-            result = open_application(application_name)
-
-            return {
-                **result,
-                "command": command,
-            }
+        return {
+            **result,
+            "command": command,
+            "intent": intent,
+            "confidence": intent_data["confidence"],
+        }
 
     # ---------------------------------
-    # Unknown command
+    # UNKNOWN COMMAND
     # ---------------------------------
 
     return {
         "success": True,
         "action": "unknown",
         "command": command,
+        "intent": intent,
+        "confidence": intent_data["confidence"],
         "message": f'LEO received: "{command}"',
         "status": "completed",
     }
