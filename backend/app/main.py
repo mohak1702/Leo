@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from backend.app.tools.computer import open_application
+from backend.app.router import route_command
 
 app = FastAPI(
     title="LEO Backend",
@@ -37,28 +37,8 @@ def health():
         "status": "healthy",
     }
 
-
 @app.post("/command")
 def handle_command(request: CommandRequest):
     command = request.command.strip()
 
-    normalized_command = command.lower()
-
-    if normalized_command in [
-        "open calculator",
-        "launch calculator",
-        "start calculator",
-    ]:
-        result = open_application("Calculator")
-
-        return {
-            **result,
-            "command": command,
-        }
-
-    return {
-        "success": True,
-        "command": command,
-        "message": f'LEO received: "{command}"',
-        "status": "completed",
-    }
+    return route_command(command)
