@@ -1,19 +1,20 @@
-APPLICATIONS = {
-    "calculator": "Calculator",
-    "safari": "Safari",
-    "chrome": "Google Chrome",
-    "google chrome": "Google Chrome",
-    "finder": "Finder",
-    "terminal": "Terminal",
-    "vscode": "Visual Studio Code",
-    "vs code": "Visual Studio Code",
-}
+from backend.app.entity import extract_application
 
 
 OPEN_COMMANDS = [
     "open",
     "launch",
     "start",
+]
+
+QUIT_COMMANDS = [
+    "close",
+    "quit",
+    "exit",
+]
+
+HIDE_COMMANDS = [
+    "hide",
 ]
 
 
@@ -34,20 +35,16 @@ def clean_command(command: str) -> str:
 
     normalized = command.strip().lower()
 
-    # Remove common punctuation
     normalized = normalized.replace(",", "")
     normalized = normalized.replace(".", "")
     normalized = normalized.replace("?", "")
 
-    # Remove LEO wake name
     if normalized.startswith("leo "):
         normalized = normalized[4:].strip()
 
-    # Remove conversational phrases
     for phrase in FILLER_WORDS:
         normalized = normalized.replace(phrase, " ")
 
-    # Normalize whitespace
     normalized = " ".join(normalized.split())
 
     return normalized
@@ -60,38 +57,75 @@ def detect_intent(command: str) -> dict:
 
     normalized_command = clean_command(command)
 
-    # Check application commands
+    # ---------------------------------
+    # OPEN APPLICATION
+    # ---------------------------------
+
     for action in OPEN_COMMANDS:
 
-        prefix = action + " "
+        if normalized_command.startswith(action + " "):
 
-        if normalized_command.startswith(prefix):
+            entity_data = extract_application(normalized_command)
 
-            target = normalized_command[len(prefix):].strip()
-
-            # Direct application match
-            if target in APPLICATIONS:
+            if entity_data["entity"]:
                 return {
                     "intent": "OPEN_APPLICATION",
-                    "target": APPLICATIONS[target],
-                    "confidence": 1.0,
+                    "target": entity_data["entity"],
+                    "entity": entity_data["entity"],
+                    "entity_type": entity_data["entity_type"],
+                    "confidence": entity_data["confidence"],
                 }
 
-            # Handle phrases such as:
-            # "open my terminal"
-            # "open the calculator"
-            target = target.removeprefix("my ").strip()
-            target = target.removeprefix("the ").strip()
+    # ---------------------------------
+    # QUIT APPLICATION
+    # ---------------------------------
 
-            if target in APPLICATIONS:
+    for action in QUIT_COMMANDS:
+
+        if normalized_command.startswith(action + " "):
+
+            entity_data = extract_application(
+                "open " + normalized_command[len(action):].strip()
+            )
+
+            if entity_data["entity"]:
                 return {
-                    "intent": "OPEN_APPLICATION",
-                    "target": APPLICATIONS[target],
-                    "confidence": 0.95,
+                    "intent": "QUIT_APPLICATION",
+                    "target": entity_data["entity"],
+                    "entity": entity_data["entity"],
+                    "entity_type": entity_data["entity_type"],
+                    "confidence": entity_data["confidence"],
                 }
+
+    # ---------------------------------
+    # HIDE APPLICATION
+    # ---------------------------------
+
+    for action in HIDE_COMMANDS:
+
+        if normalized_command.startswith(action + " "):
+
+            entity_data = extract_application(
+                "open " + normalized_command[len(action):].strip()
+            )
+
+            if entity_data["entity"]:
+                return {
+                    "intent": "HIDE_APPLICATION",
+                    "target": entity_data["entity"],
+                    "entity": entity_data["entity"],
+                    "entity_type": entity_data["entity_type"],
+                    "confidence": entity_data["confidence"],
+                }
+
+    # ---------------------------------
+    # UNKNOWN
+    # ---------------------------------
 
     return {
         "intent": "UNKNOWN",
         "target": None,
+        "entity": None,
+        "entity_type": None,
         "confidence": 0.0,
     }

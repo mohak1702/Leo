@@ -1,5 +1,9 @@
 from backend.app.intent import detect_intent
-from backend.app.tools.computer import open_application
+from backend.app.tools.computer import (
+    open_application,
+    quit_application,
+    hide_application,
+)
 
 
 def route_command(command: str) -> dict:
@@ -23,7 +27,41 @@ def route_command(command: str) -> dict:
             **result,
             "command": command,
             "intent": intent,
+            "entity": target,
             "confidence": intent_data["confidence"],
+            "status": "completed",
+        }
+
+    # ---------------------------------
+    # QUIT APPLICATION
+    # ---------------------------------
+
+    if intent == "QUIT_APPLICATION":
+        result = quit_application(target)
+
+        return {
+            **result,
+            "command": command,
+            "intent": intent,
+            "entity": target,
+            "confidence": intent_data["confidence"],
+            "status": "completed",
+        }
+
+    # ---------------------------------
+    # HIDE APPLICATION
+    # ---------------------------------
+
+    if intent == "HIDE_APPLICATION":
+        result = hide_application(target)
+
+        return {
+            **result,
+            "command": command,
+            "intent": intent,
+            "entity": target,
+            "confidence": intent_data["confidence"],
+            "status": "completed",
         }
 
     # ---------------------------------
@@ -35,6 +73,7 @@ def route_command(command: str) -> dict:
         "action": "unknown",
         "command": command,
         "intent": intent,
+        "entity": None,
         "confidence": intent_data["confidence"],
         "message": f'LEO received: "{command}"',
         "status": "completed",
