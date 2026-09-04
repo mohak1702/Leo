@@ -24,6 +24,66 @@ def open_url(url: str) -> dict:
             "url": url,
             "message": f"Unable to open {url}.",
         }
+
+def open_url_in_browser(url: str, browser: str) -> dict:
+    """
+    Open a URL in a specific macOS browser.
+    Supports Safari and Google Chrome.
+    """
+    browser_name = browser.strip().lower()
+
+    browser_map = {
+        "safari": "Safari",
+        "chrome": "Google Chrome",
+        "google chrome": "Google Chrome",
+    }
+
+    application = browser_map.get(browser_name)
+
+    if application is None:
+        return {
+            "success": False,
+            "action": "open_url_in_browser",
+            "url": url,
+            "browser": browser,
+            "message": f"Unsupported browser: {browser}",
+        }
+
+    script = f'''
+tell application "{application}"
+    activate
+    open location "{url}"
+end tell
+'''
+
+    try:
+        subprocess.run(
+            ["osascript", "-e", script],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        return {
+            "success": True,
+            "action": "open_url_in_browser",
+            "url": url,
+            "browser": application,
+            "message": f"Opened {url} in {application} successfully.",
+        }
+
+    except subprocess.CalledProcessError as error:
+        return {
+            "success": False,
+            "action": "open_url_in_browser",
+            "url": url,
+            "browser": application,
+            "message": (
+                error.stderr.strip()
+                or f"Unable to open {url} in {application}."
+            ),
+        }
+
 def get_safari_tabs() -> dict:
     """
     Get the names and URLs of all open Safari tabs.

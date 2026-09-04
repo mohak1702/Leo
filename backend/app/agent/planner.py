@@ -86,24 +86,50 @@ appropriate.
 
 7. Native macOS applications should use application tools.
 
-8. Websites and browser content should use browser tools.
+8. Websites, webpages, browser tabs, and web services
+should use browser tools.
 
-9. If the user asks for multiple actions, include every
-required action in the actions array.
-
-10. Do not combine multiple actions into one action.
-
-11. Return valid JSON only.
+9. If the user specifies a browser, the website must be
+opened inside that browser.
 
 Example:
 
 User:
-"Open Chrome and open YouTube"
+"Open Safari and open YouTube"
 
 Plan:
 
 {{
-    "goal": "Open Chrome and then open YouTube",
+    "goal": "Open Safari and then open YouTube in Safari",
+    "actions": [
+        {{
+            "tool": "open_application",
+            "arguments": {{
+                "application_name": "Safari"
+            }}
+        }},
+        {{
+            "tool": "open_url_in_browser",
+            "arguments": {{
+                "url": "https://www.youtube.com",
+                "browser": "Safari"
+            }}
+        }}
+    ]
+}}
+
+10. If the user specifies Google Chrome or Chrome,
+use "Google Chrome" as the browser name.
+
+Example:
+
+User:
+"Open Chrome and open GitHub"
+
+Plan:
+
+{{
+    "goal": "Open Google Chrome and then open GitHub in Google Chrome",
     "actions": [
         {{
             "tool": "open_application",
@@ -112,6 +138,29 @@ Plan:
             }}
         }},
         {{
+            "tool": "open_url_in_browser",
+            "arguments": {{
+                "url": "https://github.com",
+                "browser": "Google Chrome"
+            }}
+        }}
+    ]
+}}
+
+11. If the user does not specify a browser,
+use "open_url" to open the website in the default browser.
+
+Example:
+
+User:
+"Open YouTube"
+
+Plan:
+
+{{
+    "goal": "Open YouTube",
+    "actions": [
+        {{
             "tool": "open_url",
             "arguments": {{
                 "url": "https://www.youtube.com"
@@ -119,9 +168,40 @@ Plan:
         }}
     ]
 }}
+
+12. If the user asks for multiple actions,
+include every required action in the actions array.
+
+13. Do not combine multiple actions into one action.
+
+14. Preserve dependencies between actions.
+
+For example, if the user says:
+"Open Safari and then open YouTube in Safari"
+
+the Safari application must be opened before
+the YouTube URL is opened.
+
+15. Only provide arguments required by the selected tool.
+
+16. Do not add explanations outside the JSON.
+
+17. Return valid JSON only.
 """
 
     def plan(self, command: str) -> dict:
+        """
+        Convert a natural-language user command into
+        a structured execution plan.
+        """
+
+        command = command.strip()
+
+        if not command:
+            return {
+                "success": False,
+                "error": "Command cannot be empty.",
+            }
 
         planner_prompt = self._build_planner_prompt()
 
@@ -136,14 +216,21 @@ Plan:
             },
         ]
 
-        response = self.llm.chat(
-            messages,
-            use_tools=False,
-        )
+        try:
+            response = self.llm.chat(
+                messages,
+                use_tools=False,
+            )
 
-        content = response.message.content.strip()
+            content = response.message.content.strip()
 
-        # Remove accidental markdown code fences
+        except Exception as error:
+            return {
+                "success": False,
+                "error": f"Planner failed: {error}",
+            }
+
+        # Remove accidental Markdown code fences.
         if content.startswith("```"):
             content = content.replace("```json", "")
             content = content.replace("```", "")
@@ -159,10 +246,31 @@ Plan:
                 "raw_response": content,
             }
 
+        if not isinstance(plan, dict):
+            return {
+                "success": False,
+                "error": "Planner response must be a JSON object.",
+                "raw_response": content,
+            }
+
+        if "goal" not in plan:
+            return {
+                "success": False,
+                "error": "Planner did not return a goal.",
+                "plan": plan,
+            }
+
         if "actions" not in plan:
             return {
                 "success": False,
                 "error": "Planner did not return an action list.",
+                "plan": plan,
+            }
+
+        if not isinstance(plan["actions"], list):
+            return {
+                "success": False,
+                "error": "Planner actions must be a list.",
                 "plan": plan,
             }
 

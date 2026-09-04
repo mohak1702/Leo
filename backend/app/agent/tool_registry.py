@@ -6,6 +6,7 @@ from backend.app.tools.computer import (
 
 from backend.app.tools.browser import (
     open_url,
+    open_url_in_browser,
     get_chrome_tabs,
     close_chrome_tab,
 )
@@ -82,6 +83,31 @@ TOOLS = {
         "parameters": {
             "type": "object",
             "properties": {},
+        },
+    },
+
+        "open_url_in_browser": {
+        "function": open_url_in_browser,
+        "description": (
+            "Open a website URL inside a specific browser such as "
+            "Safari or Google Chrome."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "url": {
+                    "type": "string",
+                    "description": "The complete URL to open.",
+                },
+                "browser": {
+                    "type": "string",
+                    "description": (
+                        "The browser to use, such as Safari "
+                        "or Google Chrome."
+                    ),
+                },
+            },
+            "required": ["url", "browser"],
         },
     },
 
