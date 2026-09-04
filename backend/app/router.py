@@ -4,6 +4,7 @@ from backend.app.tools.computer import (
     quit_application,
     hide_application,
 )
+from backend.app.tools.browser import open_url, close_chrome_tab
 
 
 def route_command(command: str) -> dict:
@@ -16,6 +17,39 @@ def route_command(command: str) -> dict:
     intent = intent_data["intent"]
     target = intent_data["target"]
 
+       # ---------------------------------
+    # OPEN WEBSITE
+    # ---------------------------------
+
+    if intent == "OPEN_WEBSITE":
+        result = open_url(target)
+
+        return {
+            **result,
+            "command": command,
+            "intent": intent,
+            "entity": intent_data["entity"],
+            "entity_type": intent_data["entity_type"],
+            "confidence": intent_data["confidence"],
+            "status": "completed",
+        }
+
+    # ---------------------------------
+    # CLOSE CHROME TAB
+    # ---------------------------------
+
+    if intent == "CLOSE_CHROME_TAB":
+        result = close_chrome_tab(target)
+
+        return {
+            **result,
+            "command": command,
+            "intent": intent,
+            "entity": intent_data["entity"],
+            "entity_type": intent_data["entity_type"],
+            "confidence": intent_data["confidence"],
+            "status": "completed",
+        }
     # ---------------------------------
     # OPEN APPLICATION
     # ---------------------------------
@@ -27,7 +61,8 @@ def route_command(command: str) -> dict:
             **result,
             "command": command,
             "intent": intent,
-            "entity": target,
+            "entity": intent_data["entity"],
+            "entity_type": intent_data["entity_type"],
             "confidence": intent_data["confidence"],
             "status": "completed",
         }
@@ -43,7 +78,8 @@ def route_command(command: str) -> dict:
             **result,
             "command": command,
             "intent": intent,
-            "entity": target,
+            "entity": intent_data["entity"],
+            "entity_type": intent_data["entity_type"],
             "confidence": intent_data["confidence"],
             "status": "completed",
         }
@@ -59,7 +95,8 @@ def route_command(command: str) -> dict:
             **result,
             "command": command,
             "intent": intent,
-            "entity": target,
+            "entity": intent_data["entity"],
+            "entity_type": intent_data["entity_type"],
             "confidence": intent_data["confidence"],
             "status": "completed",
         }
