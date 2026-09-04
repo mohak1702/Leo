@@ -1,18 +1,19 @@
 from backend.app.agent.tool_registry import get_tool
 from backend.app.ai.local import LocalLLM, SYSTEM_PROMPT
+from backend.app.agent.planner import Planner
 
 
 class Agent:
-    """
-    Core execution engine for LEO.
 
-    The agent can reason, execute tools, observe their results,
-    and retry with another tool when necessary.
-    """
-
-    MAX_TOOL_STEPS = 3
+    def __init__(self):
+        self.llm = LocalLLM()
+        self.planner = Planner()
 
     def execute(self, tool_name: str, **arguments) -> dict:
+        """
+        Execute one registered LEO tool.
+        """
+
         tool = get_tool(tool_name)
 
         if tool is None:
@@ -39,6 +40,13 @@ class Agent:
             }
 
     def _looks_like_conversation(self, command: str) -> bool:
+        """
+        Detect obvious conversation/question requests.
+
+        These requests should not enter the computer execution
+        pipeline.
+        """
+
         text = command.strip().lower()
 
         conversation_starters = (
@@ -61,13 +69,38 @@ class Agent:
 
         return text.startswith(conversation_starters)
 
-    def run(self, command: str) -> dict:
-        llm = LocalLLM()
+    def _clean_response(self, response: str) -> str:
+        """
+        Clean the final LLM response.
+        """
+
+        if not response:
+            return "I'm here. How can I help?"
+
+        response = response.strip()
+
+        if response.startswith("assistant"):
+            response = response[len("assistant"):].strip()
+
+        return response
+
+    def _conversation(self, command: str) -> dict:
+        """
+        Handle normal conversation without tools.
+        """
 
         messages = [
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT,
+                "content": SYSTEM_PROMPT
+                + """
+
+The current request is conversation or a question.
+
+Do not perform any computer action.
+
+Answer the user directly and naturally.
+""",
             },
             {
                 "role": "user",
@@ -75,131 +108,182 @@ class Agent:
             },
         ]
 
-        tool_history = []
+        response = self.llm.chat(
+            messages,
+            use_tools=False,
+        )
 
-        for step in range(self.MAX_TOOL_STEPS):
+        return {
+            "success": True,
+            "command": command,
+            "action": "conversation",
+            "response": self._clean_response(
+                response.message.content
+            ),
+        }
 
-            response = llm.chat(messages)
-            message = response.message
+    def _create_final_response(
+        self,
+        command: str,
+        execution_results: list,
+    ) -> str:
+        """
+        Ask the local model to summarize what happened.
+        """
 
-            # No tool requested → normal/final response
-            if not message.tool_calls:
-                return {
-                    "success": True,
-                    "command": command,
-                    "action": (
-                        "conversation"
-                        if not tool_history
-                        else "tool_execution"
-                    ),
-                    "response": message.content,
-                    "tool_history": tool_history,
-                }
+        messages = [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+                + """
 
-            # Prevent obvious conversational questions
-            # from accidentally triggering computer tools.
-            if (
-                not tool_history
-                and self._looks_like_conversation(command)
-            ):
-                messages = [
-                    {
-                        "role": "system",
-                        "content": SYSTEM_PROMPT + """
+You are now generating the final response after executing
+one or more computer actions.
 
-The user is asking for information or conversation.
-Do not call a computer tool.
-Answer directly.
+Use ONLY the execution results provided.
+
+Do not invent actions or results.
+
+If an action failed, tell the user honestly.
+
+Keep the response short and natural.
 """,
-                    },
-                    {
-                        "role": "user",
-                        "content": command,
-                    },
-                ]
+            },
+            {
+                "role": "user",
+                "content": command,
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Execution results:\n"
+                    + str(execution_results)
+                ),
+            },
+        ]
 
-                conversation_response = llm.chat(messages)
+        response = self.llm.chat(
+            messages,
+            use_tools=False,
+        )
 
-                return {
-                    "success": True,
-                    "command": command,
-                    "action": "conversation",
-                    "response": conversation_response.message.content,
-                }
+        return self._clean_response(
+            response.message.content
+        )
 
-            tool_call = message.tool_calls[0]
+    def run(self, command: str) -> dict:
+        """
+        Main LEO agent pipeline.
 
-            tool_name = tool_call.function.name
-            arguments = dict(tool_call.function.arguments)
+        Conversation:
+            User → LLM → Response
 
-            execution = self.execute(
+        Action:
+            User → Planner → Executor → Results → LLM → Response
+        """
+
+        command = command.strip()
+
+        if not command:
+            return {
+                "success": False,
+                "action": "invalid",
+                "response": "Please give me a command.",
+            }
+
+        # -----------------------------------------
+        # CONVERSATION
+        # -----------------------------------------
+
+        if self._looks_like_conversation(command):
+            return self._conversation(command)
+
+        # -----------------------------------------
+        # PLANNING
+        # -----------------------------------------
+
+        planning = self.planner.plan(command)
+
+        if not planning["success"]:
+            return {
+                "success": False,
+                "command": command,
+                "action": "planning_failed",
+                "response": (
+                    "I couldn't create a plan for that request."
+                ),
+                "planner": planning,
+            }
+
+        plan = planning["plan"]
+
+        actions = plan.get("actions", [])
+
+        if not actions:
+            return {
+                "success": False,
+                "command": command,
+                "action": "no_actions",
+                "response": (
+                    "I couldn't find an action required "
+                    "for that request."
+                ),
+                "plan": plan,
+            }
+
+        # -----------------------------------------
+        # EXECUTION
+        # -----------------------------------------
+
+        execution_results = []
+
+        for index, action in enumerate(actions, start=1):
+
+            tool_name = action.get("tool")
+
+            arguments = action.get(
+                "arguments",
+                {},
+            )
+
+            result = self.execute(
                 tool_name,
                 **arguments,
             )
 
-            tool_history.append(
+            execution_results.append(
                 {
+                    "step": index,
                     "tool": tool_name,
                     "arguments": arguments,
-                    "execution": execution,
+                    "execution": result,
                 }
             )
 
-            # Preserve assistant tool call
-            messages.append(message)
+            # Stop if an action fails.
+            #
+            # We do not blindly continue because later actions
+            # may depend on the failed action.
+            if not result["success"]:
+                break
 
-            # Give actual result back to the model
-            messages.append(
-                {
-                    "role": "tool",
-                    "tool_name": tool_name,
-                    "content": str(execution),
-                }
-            )
+        # -----------------------------------------
+        # FINAL RESPONSE
+        # -----------------------------------------
 
-            # Successful action:
-            # allow LLM one more turn to describe what happened.
-            if execution["success"]:
-                final_response = llm.chat(messages)
-
-                # If it unexpectedly requests another tool,
-                # continue the agent loop.
-                if final_response.message.tool_calls:
-                    messages.append(final_response.message)
-                    continue
-
-                return {
-                    "success": True,
-                    "command": command,
-                    "action": "tool_execution",
-                    "tool": tool_name,
-                    "arguments": arguments,
-                    "execution": execution,
-                    "tool_history": tool_history,
-                    "response": final_response.message.content,
-                }
-
-            # Tool failed.
-            # Tell LLM to reconsider instead of pretending success.
-            messages.append(
-                {
-                    "role": "system",
-                    "content": (
-                        "The previous tool failed. Reconsider the user's "
-                        "original request. If another available tool can "
-                        "perform the request, use it. Do not claim success "
-                        "unless a tool succeeds."
-                    ),
-                }
-            )
+        final_response = self._create_final_response(
+            command,
+            execution_results,
+        )
 
         return {
-            "success": False,
-            "command": command,
-            "action": "failed",
-            "tool_history": tool_history,
-            "response": (
-                "I couldn't complete the request after trying "
-                "the available tools."
+            "success": all(
+                item["execution"]["success"]
+                for item in execution_results
             ),
+            "command": command,
+            "action": "planned_execution",
+            "response": final_response,
+            "plan": plan,
+            "tool_history": execution_results,
         }
