@@ -2,8 +2,8 @@ from backend.app.tools.computer import (
     open_application,
     quit_application,
     hide_application,
+    take_screenshot,
 )
-
 from backend.app.tools.browser import (
     open_url,
     open_url_in_browser,
@@ -108,6 +108,19 @@ TOOLS = {
                 },
             },
             "required": ["url", "browser"],
+        },
+    },
+
+        "take_screenshot": {
+        "function": take_screenshot,
+        "description": (
+            "Capture the current macOS screen as an image. "
+            "Use this when LEO needs to observe the current "
+            "visual state of the computer."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {},
         },
     },
 

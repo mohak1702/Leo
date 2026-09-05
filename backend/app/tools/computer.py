@@ -1,4 +1,6 @@
 import subprocess
+from pathlib import Path
+from datetime import datetime
 
 
 def open_application(application_name: str) -> dict:
@@ -108,4 +110,60 @@ def hide_application(application_name: str) -> dict:
             "action": "hide_application",
             "application": application_name,
             "message": f"Unable to hide {application_name}.",
+        }
+def take_screenshot() -> dict:
+    """
+    Capture the current macOS screen and save it as a PNG
+    for LEO's computer-use perception pipeline.
+    """
+
+    try:
+        project_root = Path(__file__).resolve().parents[2]
+
+        screenshot_dir = project_root / "runtime" / "screenshots"
+        screenshot_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        screenshot_path = screenshot_dir / f"leo_{timestamp}.png"
+
+        result = subprocess.run(
+            [
+                "screencapture",
+                "-x",
+                str(screenshot_path),
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        if not screenshot_path.exists():
+            return {
+                "success": False,
+                "action": "take_screenshot",
+                "message": "Screenshot command completed but no image was created.",
+            }
+
+        return {
+            "success": True,
+            "action": "take_screenshot",
+            "path": str(screenshot_path),
+            "message": "Current screen captured successfully.",
+        }
+
+    except subprocess.CalledProcessError as error:
+        return {
+            "success": False,
+            "action": "take_screenshot",
+            "message": (
+                error.stderr.strip()
+                or "Unable to capture the screen."
+            ),
+        }
+
+    except Exception as error:
+        return {
+            "success": False,
+            "action": "take_screenshot",
+            "message": f"Screenshot failed: {error}",
         }
