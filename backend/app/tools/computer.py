@@ -5,6 +5,7 @@ from datetime import datetime
 
 def open_application(application_name: str) -> dict:
     """Open a macOS application by name."""
+
     try:
         subprocess.run(
             ["open", "-a", application_name],
@@ -26,11 +27,11 @@ def open_application(application_name: str) -> dict:
             "message": f"Unable to open {application_name}.",
         }
 
+
 def quit_application(application_name: str) -> dict:
     """Quit a running macOS application."""
 
     try:
-        # First check whether the application is actually running.
         check_script = f'''
 tell application "System Events"
     return exists process "{application_name}"
@@ -52,11 +53,11 @@ end tell
                 "action": "quit_application",
                 "application": application_name,
                 "message": (
-                    f"{application_name} is not a running macOS application."
+                    f"{application_name} is not a running "
+                    "macOS application."
                 ),
             }
 
-        # Application exists and is running, so quit it.
         quit_script = f'''
 tell application "{application_name}" to quit
 '''
@@ -80,16 +81,21 @@ tell application "{application_name}" to quit
             "success": False,
             "action": "quit_application",
             "application": application_name,
-            "message": error.stderr.strip()
-            or f"Unable to close {application_name}.",
+            "message": (
+                error.stderr.strip()
+                or f"Unable to close {application_name}."
+            ),
         }
+
 
 def hide_application(application_name: str) -> dict:
     """Hide a macOS application."""
+
     try:
         script = (
             f'tell application "System Events" '
-            f'to set visible of process "{application_name}" to false'
+            f'to set visible of process "{application_name}" '
+            f'to false'
         )
 
         subprocess.run(
@@ -111,22 +117,37 @@ def hide_application(application_name: str) -> dict:
             "application": application_name,
             "message": f"Unable to hide {application_name}.",
         }
+
+
 def take_screenshot() -> dict:
     """
-    Capture the current macOS screen and save it as a PNG
-    for LEO's computer-use perception pipeline.
+    Capture the current macOS screen and save it as PNG.
     """
 
     try:
         project_root = Path(__file__).resolve().parents[2]
 
-        screenshot_dir = project_root / "runtime" / "screenshots"
-        screenshot_dir.mkdir(parents=True, exist_ok=True)
+        screenshot_dir = (
+            project_root
+            / "runtime"
+            / "screenshots"
+        )
 
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-        screenshot_path = screenshot_dir / f"leo_{timestamp}.png"
+        screenshot_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
 
-        result = subprocess.run(
+        timestamp = datetime.now().strftime(
+            "%Y%m%d_%H%M%S_%f"
+        )
+
+        screenshot_path = (
+            screenshot_dir
+            / f"leo_{timestamp}.png"
+        )
+
+        subprocess.run(
             [
                 "screencapture",
                 "-x",
@@ -141,14 +162,19 @@ def take_screenshot() -> dict:
             return {
                 "success": False,
                 "action": "take_screenshot",
-                "message": "Screenshot command completed but no image was created.",
+                "message": (
+                    "Screenshot command completed "
+                    "but no image was created."
+                ),
             }
 
         return {
             "success": True,
             "action": "take_screenshot",
             "path": str(screenshot_path),
-            "message": "Current screen captured successfully.",
+            "message": (
+                "Current screen captured successfully."
+            ),
         }
 
     except subprocess.CalledProcessError as error:
@@ -165,5 +191,7 @@ def take_screenshot() -> dict:
         return {
             "success": False,
             "action": "take_screenshot",
-            "message": f"Screenshot failed: {error}",
+            "message": (
+                f"Screenshot failed: {error}"
+            ),
         }
